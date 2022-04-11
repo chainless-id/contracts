@@ -5,7 +5,8 @@ import "../IWallet.sol";
 import "../EntryPoint.sol";
 import "./ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
+import "../../hyphen/hyphen/metatx/ERC2771Context.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "hardhat/console.sol";
 
 //minimal wallet
@@ -51,6 +52,7 @@ contract SimpleWallet is IWallet, ERC2771Context {
     event EntryPointChanged(EntryPoint oldEntryPoint, EntryPoint newEntryPoint);
     event hyphenLiquidityPoolChanged(address newHyphenLiquidityPool);
     event Echo(address);
+    event TrustedForwarderUpdated(address newTrustedForwarder);
 
     receive() external payable {}
 
@@ -61,6 +63,11 @@ contract SimpleWallet is IWallet, ERC2771Context {
     ) ERC2771Context(tf) {
         entryPoint = _entryPoint;
         ownerNonce.owner = _owner;
+    }
+
+    function setTrustedForwarder(address tf) external onlyOwner {
+        _trustedForwarder = tf;
+        emit TrustedForwarderUpdated(tf);
     }
 
     modifier onlyOwner() {

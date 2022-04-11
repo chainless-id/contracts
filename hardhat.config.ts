@@ -1,80 +1,116 @@
+import * as dotenv from "dotenv";
+
+import { HardhatUserConfig, task } from "hardhat/config";
+import "hardhat-contract-sizer";
+import "@nomiclabs/hardhat-etherscan";
 import "@nomiclabs/hardhat-waffle";
 import "@typechain/hardhat";
-import { HardhatUserConfig, subtask, task } from "hardhat/config";
-import "hardhat-deploy";
-import "@nomiclabs/hardhat-etherscan";
-import { TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD } from "hardhat/builtin-tasks/task-names";
-import path from "path";
-import "hardhat-gas-reporter";
-import "@nomiclabs/hardhat-etherscan";
 import "@openzeppelin/hardhat-upgrades";
-
+import "hardhat-gas-reporter";
 import "solidity-coverage";
 
-import * as fs from "fs";
+dotenv.config();
 
-let mnemonicFileName = process.env.MNEMONIC_FILE || process.env.HOME + "/.secret/testnet-mnemonic.txt";
-let mnemonic = "test ".repeat(11) + "junk";
-if (fs.existsSync(mnemonicFileName)) mnemonic = fs.readFileSync(mnemonicFileName!, "ascii");
+// This is a sample Hardhat task. To learn how to create your own go to
+// https://hardhat.org/guides/create-task.html
+task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
+  const accounts = await hre.ethers.getSigners();
 
-function getNetwork1(url: string) {
-  return {
-    url,
-    accounts: { mnemonic },
-  };
-}
-
-function getNetwork(name: string) {
-  return getNetwork1(`https://${name}.infura.io/v3/${process.env.INFURA_ID}`);
-  // return getNetwork1(`wss://${name}.infura.io/ws/v3/${process.env.INFURA_ID}`)
-}
+  for (const account of accounts) {
+    console.log(account.address);
+  }
+});
 
 // You need to export an object to set up your config
 // Go to https://hardhat.org/config/ to learn more
 
 const config: HardhatUserConfig = {
+  mocha: {
+    timeout: 500000,
+  },
   solidity: {
     compilers: [
       {
-        version: "0.8.7",
-        settings: {
-          optimizer: { enabled: true },
-        },
-      },
-      {
         version: "0.8.0",
         settings: {
-          optimizer: { enabled: true },
+          optimizer: { enabled: true, runs: 200 },
         },
       },
       {
         version: "0.8.2",
         settings: {
-          optimizer: { enabled: true },
+          optimizer: { enabled: true, runs: 200 },
+        },
+      },
+      {
+        version: "0.8.7",
+        settings: {
+          optimizer: { enabled: true, runs: 200 },
         },
       },
     ],
   },
   networks: {
-    dev: { url: "http://localhost:8545" },
-    goerli: getNetwork("goerli"),
-    proxy: getNetwork1("http://localhost:8545"),
-    kovan: getNetwork("kovan"),
+    hardhat: {
+      allowUnlimitedContractSize: false,
+      gas: 6000000,
+      // forking: {
+      //   url: `https://mainnet.infura.io/v3/${process.env.INFURA_KEY}`,
+      // },
+    },
+    ropsten: {
+      url: process.env.ROPSTEN_URL || "",
+      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+    },
+    goerli: {
+      url: process.env.GOERLI_URL || "",
+      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+    },
+    rinkeby: {
+      url: process.env.RINKEBY_URL || "",
+      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+    },
+    polygonMumbai: {
+      url: process.env.MUMBAI_URL || "",
+      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+    },
+    fuji: {
+      url: process.env.FUJI_URL || "",
+      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+    },
+    polygon: {
+      url: process.env.POLYGON_URL || "",
+      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+    },
+    avalanche: {
+      url: process.env.AVALANCHE_URL || "",
+      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+      gasPrice: 70000000000,
+    },
+    mainnet: {
+      url: process.env.MAINNET_URL || "",
+      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+      gasPrice: 50000000000,
+    },
   },
-  mocha: {
-    timeout: 10000,
-  },
-
-  etherscan: {
-    apiKey: process.env.ETHERSCAN_API_KEY,
-  },
-
   gasReporter: {
-    enabled: process.env.GAS_REPORT != null,
-    excludeContracts: ["TestToken", "SimpleWallet", "ERC20"],
-    //"yarn gas-report" to dump report and create a no-color "txt" output, to be checked in.
-    noColors: false,
-    outputFile: "reports/gas-used-output.color",
+    enabled: process.env.REPORT_GAS !== undefined,
+    currency: "USD",
+  },
+  etherscan: {
+    apiKey: {
+      goerli: process.env.ETHERSCAN_API_KEY,
+      polygonMumbai: process.env.POLYGONSCAN_API_KEY,
+      avalancheFujiTestnet: process.env.SNOWTRACE_API_KEY,
+      mainnet: process.env.ETHERSCAN_API_KEY,
+      polygon: process.env.POLYGONSCAN_API_KEY,
+      avalanche: process.env.SNOWTRACE_API_KEY,
+    },
+  },
+  contractSizer: {
+    alphaSort: true,
+    disambiguatePaths: false,
+    runOnCompile: false,
   },
 };
 

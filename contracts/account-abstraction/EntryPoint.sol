@@ -5,7 +5,9 @@ import "./StakeManager.sol";
 import "./UserOperation.sol";
 import "./IWallet.sol";
 import "./IPaymaster.sol";
-import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
+import "../hyphen/hyphen/metatx/ERC2771Context.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "hardhat/console.sol";
 
 interface ICreate2Deployer {
     function deploy(bytes memory _initCode, bytes32 _salt)
@@ -13,7 +15,7 @@ interface ICreate2Deployer {
         returns (address);
 }
 
-contract EntryPoint is StakeManager, ERC2771Context {
+contract EntryPoint is StakeManager, Ownable, ERC2771Context {
     using UserOperationLib for UserOperation;
 
     enum PaymentMode {
@@ -39,6 +41,7 @@ contract EntryPoint is StakeManager, ERC2771Context {
         uint nonce,
         bytes revertReason
     );
+    event TrustedForwarderUpdated(address newTrustedForwarder);
 
     //handleOps reverts with this error struct, to mark the offending op
     // NOTE: if simulateOp passes successfully, there should be no reason for handleOps to fail on it.
@@ -58,10 +61,36 @@ contract EntryPoint is StakeManager, ERC2771Context {
         address _create2factory,
         uint _paymasterStake,
         uint32 _unstakeDelaySec,
-        address tf
-    ) StakeManager(_unstakeDelaySec) ERC2771Context(tf) {
+        address owner
+    ) StakeManager(_unstakeDelaySec) ERC2771Context(owner) Ownable() {
         create2factory = _create2factory;
         paymasterStake = _paymasterStake;
+        transferOwnership(owner);
+    }
+
+    function _msgSender()
+        internal
+        view
+        virtual
+        override(Context, ERC2771Context)
+        returns (address sender)
+    {
+        return ERC2771Context._msgSender();
+    }
+
+    function _msgData()
+        internal
+        view
+        virtual
+        override(Context, ERC2771Context)
+        returns (bytes calldata)
+    {
+        return ERC2771Context._msgData();
+    }
+
+    function setTrustedForwarder(address tf) external onlyOwner {
+        _trustedForwarder = tf;
+        emit TrustedForwarderUpdated(tf);
     }
 
     /**

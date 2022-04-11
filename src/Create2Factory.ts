@@ -54,7 +54,8 @@ export class Create2Factory {
         32000 +
         21000;
     const ret = await factory.deploy(initCode, saltBytes32, { gasLimit });
-    const r = await ret.wait();
+    await ret.deployed();
+    const r = await ret.wait(10);
     return addr;
   }
 
