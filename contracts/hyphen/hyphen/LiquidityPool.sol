@@ -85,9 +85,9 @@ contract LiquidityPool is
         string tag
     );
     event MultiDeposit(
-        address indexed from,
-        address[] indexed tokenAddresses,
-        address indexed receiver,
+        address from,
+        address[] tokenAddresses,
+        address receiver,
         uint256 toChainId,
         uint256[] amounts,
         uint256[] reward,
@@ -226,18 +226,29 @@ contract LiquidityPool is
         uint256[] memory targetTokenPercentageAllocation
     ) public payable whenNotPaused nonReentrant {
         uint256 length = tokenAddresses.length;
-        require(length == amounts.length, "Token address and amount length mismatch");
-        require(targetTokens.length == targetTokenPercentageAllocation.length, "Target token and allocation length mismatch");
+        require(
+            length == amounts.length,
+            "Token address and amount length mismatch"
+        );
+        require(
+            targetTokens.length == targetTokenPercentageAllocation.length,
+            "Target token and allocation length mismatch"
+        );
         uint256[] memory finalAmounts = new uint256[](length);
         uint256[] memory rewardAmounts = new uint256[](length);
 
-        for(uint256 i = 0; i < length; ) {
+        for (uint256 i = 0; i < length; ) {
             address tokenAddress = tokenAddresses[i];
             uint256 amount = amounts[i];
-            if(tokenAddress == NATIVE) {
+            if (tokenAddress == NATIVE) {
                 rewardAmounts[i] = _depositNative(receiver, toChainId);
             } else {
-                rewardAmounts[i] = _depositErc20(toChainId, tokenAddress, receiver, amount);
+                rewardAmounts[i] = _depositErc20(
+                    toChainId,
+                    tokenAddress,
+                    receiver,
+                    amount
+                );
             }
             finalAmounts[i] = rewardAmounts[i] + amounts[i];
             unchecked {
@@ -246,10 +257,10 @@ contract LiquidityPool is
         }
 
         emit MultiDeposit(
-            _msgSender(), 
-            tokenAddresses, 
-            receiver, 
-            toChainId, 
+            _msgSender(),
+            tokenAddresses,
+            receiver,
+            toChainId,
             finalAmounts,
             rewardAmounts,
             tag,
@@ -263,7 +274,7 @@ contract LiquidityPool is
         address tokenAddress,
         address receiver,
         uint256 amount
-    ) private returns (uint256){
+    ) private returns (uint256) {
         TokenConfig memory config = tokenManager.getDepositConfig(
             toChainId,
             tokenAddress
@@ -307,7 +318,12 @@ contract LiquidityPool is
         uint256 amount,
         string calldata tag
     ) public tokenChecks(tokenAddress) whenNotPaused nonReentrant {
-        uint256 rewardAmount = _depositErc20(toChainId, tokenAddress, receiver, amount);
+        uint256 rewardAmount = _depositErc20(
+            toChainId,
+            tokenAddress,
+            receiver,
+            amount
+        );
         // Emit (amount + reward amount) in event
         emit Deposit(
             _msgSender(), //
@@ -394,10 +410,10 @@ contract LiquidityPool is
      * @param receiver Address on toChainId where tokens needs to be transfered
      * @param toChainId Chain id where funds needs to be transfered
      */
-    function _depositNative(
-        address receiver,
-        uint256 toChainId
-    ) private returns (uint256) {
+    function _depositNative(address receiver, uint256 toChainId)
+        private
+        returns (uint256)
+    {
         require(
             tokenManager.getDepositConfig(toChainId, NATIVE).min <= msg.value &&
                 tokenManager.getDepositConfig(toChainId, NATIVE).max >=
@@ -455,7 +471,7 @@ contract LiquidityPool is
         );
 
         uint256 length = tokenAddresses.length;
-        for(uint256 i = 0; i < length; ) {
+        for (uint256 i = 0; i < length; ) {
             sendFundsToUser(
                 tokenAddresses[i],
                 amounts[i],
@@ -468,7 +484,6 @@ contract LiquidityPool is
                 ++i;
             }
         }
-        
     }
 
     function sendFundsToUser(

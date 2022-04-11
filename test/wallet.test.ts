@@ -108,10 +108,6 @@ describe("EntryPoint", function () {
     expect(await userWallet.owner()).to.equal(walletOwner.address);
 
     // 2. Sample Transaction Using Wallet: Call echo() on Wallet
-    await ethersSigner.sendTransaction({
-      to: userWallet.address,
-      value: ONE_ETH,
-    });
     const echoCallData = (await userWallet.populateTransaction.echo()).data!;
     const sampleOp = await fillAndSign(
       {

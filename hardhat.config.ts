@@ -6,6 +6,8 @@ import "@nomiclabs/hardhat-etherscan";
 import { TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD } from "hardhat/builtin-tasks/task-names";
 import path from "path";
 import "hardhat-gas-reporter";
+import "@nomiclabs/hardhat-etherscan";
+import "@openzeppelin/hardhat-upgrades";
 
 import "solidity-coverage";
 
