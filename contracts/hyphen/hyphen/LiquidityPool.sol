@@ -493,7 +493,7 @@ contract LiquidityPool is
         bytes calldata depositHash,
         uint256 tokenGasPrice,
         uint256 fromChainId
-    ) public nonReentrant onlyExecutor whenNotPaused {
+    ) public onlyExecutor whenNotPaused {
         uint256 initialGas = gasleft();
         TokenConfig memory config = tokenManager.getTransferConfig(
             tokenAddress
