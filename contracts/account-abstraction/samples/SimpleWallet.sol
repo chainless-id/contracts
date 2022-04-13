@@ -23,7 +23,7 @@ interface IHyphenPool {
         string calldata tag,
         string[] memory targetTokens,
         uint256[] memory targetTokenPercentageAllocation
-    ) external;
+    ) external payable;
 }
 
 contract SimpleWallet is IWallet, ERC2771Context {
@@ -38,7 +38,6 @@ contract SimpleWallet is IWallet, ERC2771Context {
     }
 
     OwnerNonce ownerNonce;
-    IHyphenPool hyphenLiquidityPool;
     EntryPoint public entryPoint;
 
     function nonce() public view returns (uint) {
@@ -75,14 +74,6 @@ contract SimpleWallet is IWallet, ERC2771Context {
         _;
     }
 
-    modifier onlyHyphenPool() {
-        require(
-            _msgSender() == address(hyphenLiquidityPool),
-            "ERR__UNAUTHORIZED"
-        );
-        _;
-    }
-
     function _onlyOwner() internal view {
         //directly from EOA owner, or through the entryPoint (which gets redirected through execFromEntryPoint)
         require(
@@ -99,41 +90,53 @@ contract SimpleWallet is IWallet, ERC2771Context {
         emit Echo(_msgSender());
     }
 
+    function _handleTokenApproval(
+        address token,
+        address spender,
+        uint256 amount
+    ) internal {
+        if (IERC20(token).allowance(address(this), address(spender)) < amount) {
+            IERC20(token).approve(address(spender), 0);
+            IERC20(token).approve(address(spender), type(uint256).max);
+        }
+    }
+
     function transferViaHyphen(
+        IHyphenPool hyphenLiquidityPool,
         address[] calldata tokenAddresses,
         uint256[] calldata amounts,
-        string[] memory targetTokens,
-        uint256[] memory targetTokenPercentageAllocation,
+        string[] calldata targetTokens,
+        uint256[] calldata targetTokenPercentageAllocation,
         uint256 toChainId
-    ) external {
-        uint256 length = amounts.length;
-        require(length == tokenAddresses.length, "ERR__INVALID_LENGTH");
+    ) public {
+        require(_msgSender() == address(this), "ERR__INVALID_SENDER");
+
+        require(amounts.length == tokenAddresses.length, "ERR__INVALID_LENGTH");
         require(
             targetTokens.length == targetTokenPercentageAllocation.length,
             "ERR__INVALID_LENGTH"
         );
 
-        for (uint256 i = 0; i < length; ) {
+        uint256 value = 0;
+        for (uint256 i = 0; i < amounts.length; ) {
             address token = tokenAddresses[i];
-            uint256 value = 0;
             if (token == NATIVE) {
                 value = amounts[i];
             } else {
-                IERC20 tokenContract = IERC20(token);
-                if (
-                    tokenContract.allowance(_msgSender(), address(this)) <
+                _handleTokenApproval(
+                    token,
+                    address(hyphenLiquidityPool),
                     amounts[i]
-                ) {
-                    tokenContract.approve(address(this), 0);
-                    tokenContract.approve(address(this), type(uint256).max);
-                }
+                );
             }
             unchecked {
                 ++i;
             }
         }
 
-        hyphenLiquidityPool.multiTokenDeposit(
+        require(value <= address(this).balance, "ERR__INSUFFICIENT_FUNDS");
+
+        hyphenLiquidityPool.multiTokenDeposit{value: value}(
             toChainId,
             tokenAddresses,
             address(this),

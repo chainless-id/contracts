@@ -51,13 +51,6 @@ const config: HardhatUserConfig = {
     ],
   },
   networks: {
-    hardhat: {
-      allowUnlimitedContractSize: false,
-      gas: 6000000,
-      // forking: {
-      //   url: `https://mainnet.infura.io/v3/${process.env.INFURA_KEY}`,
-      // },
-    },
     ropsten: {
       url: process.env.ROPSTEN_URL || "",
       accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],

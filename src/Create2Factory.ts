@@ -1,8 +1,6 @@
-//from https://eips.ethereum.org/EIPS/eip-2470
 import { BigNumber, BigNumberish, Contract, ethers, Signer } from "ethers";
 import { arrayify, hexConcat, hexlify, hexZeroPad, keccak256 } from "ethers/lib/utils";
 import { Provider } from "@ethersproject/providers";
-
 export class Create2Factory {
   factoryDeployed = false;
 
@@ -54,8 +52,7 @@ export class Create2Factory {
         32000 +
         21000;
     const ret = await factory.deploy(initCode, saltBytes32, { gasLimit });
-    await ret.deployed();
-    const r = await ret.wait(10);
+    const r = await ret.wait();
     return addr;
   }
 
@@ -72,7 +69,7 @@ export class Create2Factory {
     );
   }
 
-  // deploy the EIP2470 factory, if not already deployed.
+  //deploy the EIP2470 factory, if not already deployed.
   // (note that it requires to have a "signer" with 0.0247 eth, to fund the deployer's deployment
   async deployFactory(signer?: Signer) {
     if (await this._isFactoryDeployed()) {

@@ -65,7 +65,6 @@ contract EntryPoint is StakeManager, Ownable, ERC2771Context {
     ) StakeManager(_unstakeDelaySec) ERC2771Context(owner) Ownable() {
         create2factory = _create2factory;
         paymasterStake = _paymasterStake;
-        transferOwnership(owner);
     }
 
     function _msgSender()
@@ -236,8 +235,11 @@ contract EntryPoint is StakeManager, Ownable, ERC2771Context {
         IPaymaster.PostOpMode mode = IPaymaster.PostOpMode.opSucceeded;
         if (op.callData.length > 0) {
             (bool success, bytes memory result) = address(op.getSender()).call{
-                gas: op.callGas
+                gas: op.callGas 
             }(op.callData);
+
+            console.log("call result:", success);
+
             if (!success) {
                 if (result.length > 0) {
                     emit UserOperationRevertReason(

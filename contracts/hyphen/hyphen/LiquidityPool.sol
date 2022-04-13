@@ -27,6 +27,7 @@ import "./interfaces/IExecutorManager.sol";
 import "./interfaces/ILiquidityProviders.sol";
 import "../interfaces/IERC20Permit.sol";
 import "./interfaces/ITokenManager.sol";
+import "hardhat/console.sol";
 
 contract LiquidityPool is
     Initializable,
@@ -225,6 +226,9 @@ contract LiquidityPool is
         string[] memory targetTokens,
         uint256[] memory targetTokenPercentageAllocation
     ) public payable whenNotPaused nonReentrant {
+        console.log("value: ", msg.value);
+
+        console.log("multitokendepoist called");
         uint256 length = tokenAddresses.length;
         require(
             length == amounts.length,
@@ -239,7 +243,9 @@ contract LiquidityPool is
 
         for (uint256 i = 0; i < length; ) {
             address tokenAddress = tokenAddresses[i];
+            console.log("multitokendepoist loop start ", tokenAddress);
             uint256 amount = amounts[i];
+            console.log("multitokendepoist loop start 2", tokenAddress);
             if (tokenAddress == NATIVE) {
                 rewardAmounts[i] = _depositNative(receiver, toChainId);
             } else {
@@ -254,8 +260,8 @@ contract LiquidityPool is
             unchecked {
                 ++i;
             }
+            console.log("multitokendepoist loop end ", tokenAddress);
         }
-
         emit MultiDeposit(
             _msgSender(),
             tokenAddresses,
@@ -267,6 +273,8 @@ contract LiquidityPool is
             targetTokens,
             targetTokenPercentageAllocation
         );
+
+        console.log("multitokendepoist end2");
     }
 
     function _depositErc20(
@@ -420,14 +428,19 @@ contract LiquidityPool is
                 msg.value,
             "Deposit amount not in Cap limit"
         );
+        console.log("deposit natve 1");
         require(receiver != address(0), "Receiver address cannot be 0");
         require(msg.value != 0, "Amount cannot be 0");
+        console.log("deposit natve 2");
 
         uint256 rewardAmount = getRewardAmount(msg.value, NATIVE);
         if (rewardAmount != 0) {
             incentivePool[NATIVE] = incentivePool[NATIVE] - rewardAmount;
         }
+        console.log("deposit natve 3");
+        console.log(msg.value);
         liquidityProviders.increaseCurrentLiquidity(NATIVE, msg.value);
+        console.log("deposit natve 4");
         return rewardAmount;
     }
 

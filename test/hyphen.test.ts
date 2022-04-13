@@ -1,4 +1,5 @@
 import { expect, use } from "chai";
+import { Create2Factory } from "../src/Create2Factory";
 import { ethers, upgrades } from "hardhat";
 import {
   ERC20Token,
@@ -6,12 +7,37 @@ import {
   LiquidityProvidersTest,
   ExecutorManager,
   LPToken,
+  TestUtil__factory,
   WhitelistPeriodManager,
   TokenManager,
+  TestUtil,
+  SimpleWallet,
+  SimpleWallet__factory,
+  EntryPoint,
+  EntryPoint__factory,
+  HyphenLiquidityFarming,
   // eslint-disable-next-line node/no-missing-import
 } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber } from "ethers";
+import {
+  AddressZero,
+  createWalletOwner,
+  fund,
+  checkForGeth,
+  rethrow,
+  tostr,
+  WalletConstructor,
+  calcGasUsage,
+  checkForBannedOps,
+  ONE_ETH,
+  TWO_ETH,
+  deployEntryPoint,
+  getBalance,
+  FIVE_ETH,
+  createAddress,
+} from "./testutils";
+import { fillAndSign, getRequestId } from "./UserOp";
 
 function getLocaleString(amount: number) {
   return amount.toLocaleString("fullwide", { useGrouping: false });
@@ -34,6 +60,9 @@ describe("LiquidityPoolTests", function () {
   let tokenAddress: string;
   let tag: string = "HyphenUI";
 
+  let testUtil: TestUtil;
+  let wallet: SimpleWallet;
+
   const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
   const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
   const minTokenCap = getLocaleString(10 * 1e18);
@@ -53,6 +82,9 @@ describe("LiquidityPoolTests", function () {
   const ASSET_SENT = "AssetSent";
   const DEPOSIT_TOPIC_ID = "0x5fe47ed6d4225326d3303476197d782ded5a4e9c14f479dc9ec4992af4e85d59";
   const dummyDepositHash = "0xf408509b00caba5d37325ab33a92f6185c9b5f007a965dfbeff7b81ab1ec871a";
+
+  let entryPoint: EntryPoint;
+  let entryPointView: EntryPoint;
 
   beforeEach(async function () {
     [owner, pauser, charlie, bob, tf, proxyAdmin, executor] = await ethers.getSigners();
@@ -148,6 +180,31 @@ describe("LiquidityPoolTests", function () {
         await t.mint(signer.address, ethers.BigNumber.from(100000000).mul(ethers.BigNumber.from(10).pow(18)));
       }
     }
+
+    const globalUnstakeDelaySec = 2;
+    const paymasterStake = ethers.utils.parseEther("1");
+    const chainId = await ethers.provider.getNetwork().then((net) => net.chainId);
+
+    new Create2Factory(ethers.provider).deployFactory();
+    entryPoint = await new EntryPoint__factory(owner).deploy(
+      Create2Factory.contractAddress,
+      paymasterStake,
+      globalUnstakeDelaySec,
+      // ethersSigner.address
+      ethers.constants.AddressZero
+    );
+
+    testUtil = await new TestUtil__factory(owner).deploy();
+    // entryPoint = await deployEntryPoint(paymasterStake, globalUnstakeDelaySec);
+
+    //static call must come from address zero, to validate it can only be called off-chain.
+    entryPointView = entryPoint.connect(ethers.provider.getSigner(AddressZero));
+    wallet = await new SimpleWallet__factory(owner).deploy(
+      entryPoint.address,
+      await charlie.getAddress(),
+      "0x0000000000000000000000000000000000000000"
+    );
+    await fund(wallet);
   });
 
   async function addTokenLiquidity(tokenAddress: string, tokenValue: string, sender: SignerWithAddress) {
@@ -788,6 +845,7 @@ describe("LiquidityPoolTests", function () {
   });
    */
 
+  /*
   it("Should process multi token deposits", async function () {
     const toTokenUnits = (amount: number) => ethers.BigNumber.from(10).pow(19).mul(amount);
     for (const t of [token, token2, token3, token4]) {
@@ -866,5 +924,112 @@ describe("LiquidityPoolTests", function () {
         ["USDC", "USDT"],
         [20, 80]
       );
+  });
+  */
+
+  it("Should process deposits via wallet", async function () {
+    // 1. Wallet Creation
+    const salt = owner.address;
+    const preAddr = await entryPoint.getSenderAddress(WalletConstructor(entryPoint.address, charlie.address), salt);
+    await fund(preAddr);
+    let createOp = await fillAndSign(
+      {
+        initCode: WalletConstructor(entryPoint.address, charlie.address),
+        callGas: 1e7,
+        verificationGas: 2e6,
+        nonce: salt, // During contract creation, this is used as the salt. Address(deployedContract) is a function of this salt
+      },
+      charlie,
+      entryPoint
+    );
+
+    expect(await ethers.provider.getCode(preAddr).then((x) => x.length)).to.equal(2, "wallet exists before creation");
+
+    await entryPoint
+      .connect(bob)
+      .handleOps([createOp], bob.address, {
+        gasLimit: 1e7,
+      })
+      .then((tx) => tx.wait())
+      .catch(rethrow());
+
+    const userWallet = SimpleWallet__factory.connect(preAddr, charlie);
+    expect(await userWallet.owner()).to.equal(charlie.address);
+
+    await token.connect(charlie).transfer(userWallet.address, ethers.utils.parseEther("1000"));
+    await token2.connect(charlie).transfer(userWallet.address, ethers.utils.parseEther("1000"));
+    await token3.connect(charlie).transfer(userWallet.address, ethers.utils.parseEther("1000"));
+    await token4.connect(charlie).transfer(userWallet.address, ethers.utils.parseEther("1000"));
+    await charlie.sendTransaction({
+      to: userWallet.address,
+      value: ethers.utils.parseEther("100"),
+    });
+
+    const toTokenUnits = (amount: number) => ethers.BigNumber.from(10).pow(19).mul(amount);
+
+    // 2. Sample Transaction Using Wallet: Call echo() on Wallet
+    let transferCallData = (
+      await userWallet.populateTransaction.transferViaHyphen(
+        liquidityPool.address,
+        [NATIVE, token.address],
+        [toTokenUnits(1), toTokenUnits(1)],
+        ["USDT"],
+        [10000],
+        1
+      )
+    ).data!;
+    let sampleOp = await fillAndSign(
+      {
+        sender: userWallet.address,
+        callData: (
+          await userWallet.populateTransaction.execFromEntryPoint(userWallet.address, 0, transferCallData)
+        ).data,
+      },
+      charlie,
+      entryPoint
+    );
+    let result = await entryPoint.connect(ethers.constants.AddressZero).callStatic.simulateValidation(sampleOp);
+    console.log("Echo simulation result: ", result);
+
+    await expect(
+      async () =>
+        await entryPoint.connect(bob).handleOp(sampleOp, bob.address, {
+          gasLimit: 30000000,
+        })
+    ).to.changeTokenBalances(token, [userWallet, liquidityPool], [toTokenUnits(-1), toTokenUnits(1)]);
+
+    // Round 2
+    console.log(await ethers.provider.getBalance(userWallet.address));
+    transferCallData = (
+      await userWallet.populateTransaction.transferViaHyphen(
+        liquidityPool.address,
+        [NATIVE, token.address],
+        [toTokenUnits(1), toTokenUnits(1)],
+        ["USDT"],
+        [10000],
+        1
+      )
+    ).data!;
+    sampleOp = await fillAndSign(
+      {
+        sender: userWallet.address,
+        callData: (
+          await userWallet.populateTransaction.execFromEntryPoint(userWallet.address, 0, transferCallData)
+        ).data,
+      },
+      charlie,
+      entryPoint
+    );
+
+    console.log(sampleOp)
+    
+    result = await entryPoint.connect(ethers.constants.AddressZero).callStatic.simulateValidation(sampleOp);
+    console.log("Echo simulation result: ", result);
+    await expect(
+      async () =>
+        await entryPoint.connect(bob).handleOp(sampleOp, bob.address, {
+          gasLimit: 30000000,
+        })
+    ).to.changeEtherBalances([userWallet, liquidityPool], [toTokenUnits(-1), toTokenUnits(1)]);
   });
 });

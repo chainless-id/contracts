@@ -2,6 +2,7 @@ import "./aa.init";
 import { describe } from "mocha";
 import { BigNumber, Wallet } from "ethers";
 import { expect } from "chai";
+import { Create2Factory } from "../src/Create2Factory";
 import {
   SimpleWallet,
   SimpleWallet__factory,
@@ -12,6 +13,7 @@ import {
   TestUtil__factory,
   ERC20Token,
   ERC20Token__factory,
+  EntryPoint__factory,
 } from "../typechain";
 import {
   AddressZero,
@@ -56,12 +58,20 @@ describe("EntryPoint", function () {
   before(async function () {
     [ethersSigner, bundler] = await ethers.getSigners();
     signer = await ethersSigner.getAddress();
-    await checkForGeth();
+    //await checkForGeth();
 
     const chainId = await ethers.provider.getNetwork().then((net) => net.chainId);
 
     testUtil = await new TestUtil__factory(ethersSigner).deploy();
-    entryPoint = await deployEntryPoint(paymasterStake, globalUnstakeDelaySec);
+    // entryPoint = await deployEntryPoint(paymasterStake, globalUnstakeDelaySec);
+    new Create2Factory(ethers.provider).deployFactory();
+    entryPoint = await new EntryPoint__factory(ethersSigner).deploy(
+      Create2Factory.contractAddress,
+      paymasterStake,
+      globalUnstakeDelaySec,
+      // ethersSigner.address
+      ethers.constants.AddressZero
+    );
 
     //static call must come from address zero, to validate it can only be called off-chain.
     entryPointView = entryPoint.connect(ethers.provider.getSigner(AddressZero));
@@ -72,6 +82,8 @@ describe("EntryPoint", function () {
       "0x0000000000000000000000000000000000000000"
     );
     await fund(wallet);
+
+    console.log(await entryPoint.paymasterStake());
 
     //sanity: validate helper functions
     const sampleOp = await fillAndSign({ sender: wallet.address }, walletOwner, entryPoint);
@@ -99,7 +111,7 @@ describe("EntryPoint", function () {
     await entryPoint
       .connect(bundler)
       .handleOps([createOp], bundler.address, {
-        gasLimit: 1e7,
+        gasLimit: 2e7,
       })
       .then((tx) => tx.wait())
       .catch(rethrow());
